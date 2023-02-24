@@ -1,0 +1,381 @@
+---
+title: "Analysis of the effect of class type on math grade"
+author: "Wenzhuo Wu"
+date: "Feb 6th"
+output:
+  word_document: default
+  pdf_document: default
+  html_document:
+    df_print: paged
+    number_sections: yes
+---
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.pos = 'H')
+```
+
+
+# Abstract 
+
+This project examined the differences in first-grade math scaled scores across three class types in the STAR project and determined which class size is associated with the highest scores. We initially used a parametric method, but it failed during the model diagnostic stage. We subsequently used the nonparametric Friedman rank sum test and arrived at the same conclusion: small-size class type results in the highest math grades. As a result, we recommend reducing class size to enhance student learning achievement. Future research can focus on determining an optimal class size that can significantly improve student learning achievement, and should also use a balanced design and increase replications for each class type in each schools, as our dataset is unbalanced and lack of replications, which can reduce the power of the test.
+
+*** 
+# Introduction
+
+The impact of class size on student grades and academic performance has been widely studied and shown to be significant. In smaller class sizes, students receive a more personalized education with increased opportunities for individual attention from their teachers. This can lead to improved academic performance and engagement in learning (Chetty et al, 2011). However, implementing substantial reductions in class size can be costly. The objective of this project is to examine the differences in first-grade math scaled scores across three class types in the STAR project (Achilles et al, 2008) and determine which class size is associated with the highest scores. The outcome of this research could provide insights into the short-term benefits of education based on class size and predict the long-term impact of early education. </span>
+
+***  
+# Background 
+
+The Tennessee Class Size Project is a multi-stage investigation aimed at examining the impact of reduced class sizes in the early years of education on both short-term and long-term student outcomes. The initial phase, known as Project STAR (Student-Teacher Achievement Ratio), was initiated in 1985 and involved 11,600 students from kindergarten to 3rd grade across 79 Tennessee public schools. The students were randomly placed in either small classes (with a target of 13-17 students), regular-sized classes (target of 22-25 students), or regular-sized classes with a teacher assistant. Teachers were also randomly assigned to each class type. Schools were selected for the study if they had enough students to have at least one class of each type, and students were then randomly assigned to the classes. In this project, four variables from STAR project Harvard Dataverse were used for analysis, which are `G1SCHID`: Grade 1 School ID, `G1STCHID`: Grade 1 Teacher ID, `G1SCLASST`: Class type for Grade 1 and `G1TMATHSS`: Total math scale score SAT grade 1. 
+
+*** 
+```{r, echo=FALSE, warning=FALSE, results='hide',include = FALSE, message=FALSE}
+data1 <- haven::read_sav(("STAR_Students.sav")) 
+data <- cbind.data.frame(Class_Type=data1$g1classtype, Teacher_ID = data1$g1tchid, School_ID =data1$g1schid, Math_Grade = data1$g1tmathss)
+```
+
+
+# Descriptive analysis 
+
+## Preprocessing
+
+Prior to conducting the data analysis, the percentage of missing values in the dataset was calculated and presented in Table 1. Approximately 41% of the students were found to be non-first graders and were thus eliminated. Additionally, 3% of the first-grade students were missing math grades which were assumed to be missing at random, so they were also excluded. The math grades of the remaining first-year students were then grouped and summarized by teacher ID.
+
+```{r, echo=FALSE, warning=FALSE,  message=FALSE, tab.align = "center"}
+tab <- data.frame(Missing_Percentage = colMeans(is.na(data)))
+library(kableExtra)
+tab %>%
+  kbl(caption = "") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+# DT::datatable(tab)
+```
+<p style="text-align: center;">**Table 1**: Missing percentage for each variable.</p>
+
+```{r, echo=FALSE, warning=FALSE, results='hide',include = FALSE, message=FALSE}
+library(car)
+data_clean <- data[rowSums(is.na(data)) != ncol(data), ]
+colMeans(is.na(data_clean))
+data <- na.omit(data_clean) 
+str(data)
+data$Class_Type <- as.factor(data$Class_Type)
+data$Teacher_ID<- as.factor(data$Teacher_ID)
+data$School_ID<- as.factor(data$School_ID)
+library(dplyr)
+
+df <- 
+  data %>%
+  group_by(Teacher_ID) %>%
+  mutate(Mean_Math_Grade_Per_Teacher=mean(Math_Grade))%>%
+  slice(1)
+```
+
+## Exploratory data analysis
+
+The distribution of Math Grades for first-year students across various class types was displayed using a boxplot in **Figure 1**, with summary statistics presented in **Table 2**. The mean and standard deviation of Math Grades were found to be highest for students in small-sized classes, while the mean and standard deviation for students in regular classes were the lowest. Based on visual observation, there did not appear to be a significant difference in Math Grades among the different class types.
+
+```{r, echo=FALSE, result = 'hide', fig.height = 3, fig.width = 5, fig.align = "center"}
+library(ggplot2)
+ch <- ggplot(df,aes(x=Class_Type,y=Mean_Math_Grade_Per_Teacher,fill=Class_Type))+
+      geom_boxplot( alpha=0.3)+
+  theme(legend.position="top")+
+  scale_fill_discrete(labels=c('Small', 'Regular','Regular + Aide'))+theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+ch 
+```
+<p style="text-align: center;">**Figure 1**. Boxplot for Math Grade (1st year) across different class types.</p>
+
+
+
+```{r, echo=FALSE, result = 'hide', fig.height = 4, fig.width = 6, tab.align = "center"}
+#aggregate(Math_Grade~Class_Type,data=df,mean)
+#aggregate(Math_Grade~Class_Type,data=df,sd)
+#sum(df$Class_Type=='1')
+#sum(df$Class_Type=='2')
+#sum(df$Class_Type=='3')
+df2 <- data.frame (Class_Type  = c("Small", "Regular","Regular + Aide"),
+                  Count = c("124", "115", "100"),
+                  Mean= c("538.9852","525.4052","529.4998"),
+                  Standard_Deviation= c("26.59781","23.85981","24.02490")
+                  )
+
+
+df2 %>%
+  kbl(caption = "") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+```
+<p style="text-align: center;">**Table 2**. Summary statistics for Math Grade (1st year) from different class types.</p>
+
+<div align="left">The grading standards of different schools may vary, which is reflected in the distribution of Math Grades for first-year students across schools shown in **Figure 2** and summarized in **Table 3**. The distributions of Math Grades across schools have a lot differences, indicating the need to account for the influence of schools when analyzing the data. Thus, it is necessary to analyze the data with blocking (school_id) to remove the influence of school on math grade. The analysis of the experiment will focus on the effect of varying levels of the class types within each block (school) of the experiment.
+ 
+```{r,echo=FALSE, result = 'hide', fig.height = 3, fig.width = 5, fig.align = "center"}
+library(ggplot2)
+p<- ggplot(df, aes(x=School_ID, y=Mean_Math_Grade_Per_Teacher)) + 
+  geom_boxplot()+theme(
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+p
+```
+<p style="text-align: center;">**Figure 2**. Boxplot of Math Grade (1st year) across different schools.</p>
+
+
+```{r,echo=FALSE, result = 'hide', fig.height = 4, fig.width = 6, tab.align = "center"}
+tab2 <- data.frame(aggregate(Mean_Math_Grade_Per_Teacher~School_ID,data=df,mean))
+tab3 <- data.frame(aggregate(Mean_Math_Grade_Per_Teacher~School_ID,data=df,sd))
+tab4 <- cbind.data.frame(School_ID=tab2$School_ID, Mean_Math_Grade = tab2$Mean_Math_Grade_Per_Teacher, Sd_Math_Grade =tab3$Mean_Math_Grade_Per_Teacher)
+DT::datatable(tab4)
+```
+<p style="text-align: center;">**Table 3**. Summary statistics for Math Grade (1st year) from different schools.</p>
+*** 
+ 
+
+# Inferential analysis 
+
+The study employs a **randomized complete block design**, with class type as the main effect and schools as the blocking factor. In this design, the blocking effect does not interact with the main effect, as is characteristic of randomized complete block designs. Schools were chosen when it has more than one class type, so it isn't randomly chosen and treated as fixed effect. Class type is also a fixed effect because we choose the class type on purpose.
+
+**Model**
+
+$Y_{ij} = \mu + \alpha_{i} + \beta_{j} + \epsilon_{ij}$, where $\epsilon_{ij}$ are i.i.d. $N(0, \sigma^2)$ with the constraint $\sum_{i}\alpha_{i} = \sum_{j} \beta_{j} = 0.$ (Ariel and Farrington, 2010)
+
+By notation,
+
+* The index $i$ denotes main factor level (class type): small, regular and regular + aide. The index $j$ denotes blocking factor levels. There are 76 levels of school ID.
+* $Y_{ij}$ is the random variable representing the math grade from treatment i obseved in block h
+* $\mu$ is a constant representing the overall mean
+* $\alpha_{i}$ is the additive effect of the $i^{th}$ treatment (i=1,2,3)
+* $\beta_{j}$ is the additive effect of the $j^{th}$ treatment (j=1,2,...,76)
+* $\epsilon_{ij}$ is the random error for the $i^{th}$ treatment in the $j^{th}$ block.
+
+**Assumption**
+
+The random erros are assumed to be identically and independently distributed from a normal distribution with mean 0 and variance $\sigma^2$.
+
+
+**Fit the model**
+
+The fitted model is $\hat{Y_{ij}}$ = 502.5007 + $\hat{\alpha_i}$ + $\hat\beta_j$.
+
+For `Class_type`:
+
+* If Class_type is Small, $\alpha_1$ = 0. 
+* If Class_type is regular,  $\alpha_2$ = -13.3698.
+* If Class_type is regular+aide,  $\alpha_3$ = -11.3966.
+
+For `School_ID`:
+
+* If School_ID is 112038, $\beta_1$ = 0. 
+* If Class_type is 123056,  $\beta_2$ = 36.0913.
+* If Class_type is 128076,  $\beta_3$ = 21.1921, etc. (**Table 4**)
+
+```{r,echo=FALSE, result = 'hide', fig.height = 4, fig.width = 6, tab.align = "center"}
+fit <- lm(Mean_Math_Grade_Per_Teacher ~ School_ID + Class_Type,data=df)
+tab_1 <- summary(fit)
+tab_11 <- as.data.frame(tab_1$coefficients)
+DT::datatable(tab_11)
+```
+<p style="text-align: center;">**Table 4**. Coefficients in the model.</p>
+
+
+**Hypothesis testing**
+
+The null hypothesis is $\alpha_{1} = \alpha_{2} = \alpha_{3}$, there is no difference of math grade from 1st grade for different class types.
+
+The alternative hypothesis is not all math grade for different class types are the same.
+
+Based on the result from ANOVA using type II error (**Table 5**), at the significance level of 0.05, we reject the null hypothesis. At least two class types give different math grades. The math grade for different class types are not all the same.  Furthermore, incorporating blocking into the experiment will increase its precision, as the results show that the `School_ID` factor is also significant.
+
+In this test, the additional assumptions is that this experiment is a balanced design. Each block has same number of observations for each level of main effect.
+
+```{r,echo=FALSE, warning=FALSE, results='hide',include = FALSE, message=FALSE}
+anova(lm(Mean_Math_Grade_Per_Teacher ~ School_ID + Class_Type,data=df,type=2))
+```
+
+
+|     Source of Variation   |  Sum of Squares   |  DF | Mean of Squares | F value| P value|
+| ------------------|:-----------:|:------:|:----------------------:| :-----:|:-----:|
+| `Class_Type`     |  12026 | 2  |   6013.1  |  21.7298 | <0.0001***
+| `School_ID`      | 136424 | 75 |    1819.0  | 6.5733| <0.0001***|
+|    `Residuals`      |    72225  |  261   |  276.7     |     | |
+<p style="text-align: center;">**Table 5**. ANOVA table using type II error.</p>
+
+
+<div align="left">**Post-hoc analysis**
+
+Upon observing significant differences in math grades among different class types, it is advisable to conduct a post-hoc analysis using the Tukey-Kramer method. The results of the analysis, shown in **Table 6**, reveal that the small class type has the highest average math grade among the different class types at significance level 0.05.
+
+|     Pairwise Comparison   |  Difference   |   Ajusted P value|
+| ------------------|:-----------:|:------:|
+| `Regular` - `Small`     |  -12.954892 | <0.0001***
+| `Regular + Aide` - `Small`      | -11.068529 | <0.0001***|
+|    `Regular + Aide` - `Regular`      |    1.886363  | 0.6851 |
+<p style="text-align: center;">**Table 6**. All three pairwise comparison of class type by Tukey-Kramer method.</p>
+
+```{r,echo=FALSE, warning=FALSE, results='hide',include = FALSE, message=FALSE}
+library(dplyr)
+alpha=0.05
+T.ci=TukeyHSD(aov(Mean_Math_Grade_Per_Teacher ~ School_ID + Class_Type,data=df),conf.level = 1-alpha)
+T.ci$Class_Type
+```
+
+*** 
+
+# Sensitivity analysis 
+
+
+<div align="left"> The Residuals vs Fitted Values plot (**Figure 3**) indicates that the residuals are uniformly distributed on both sides of the x-axis. This suggests that our model does not violate the assumption of equal variance. However, based on result from Levene's test, the assumption of homogeneity of variance doesn't meet (**P<0.0001**). Additionally, the Normal Q-Q plot shows that the residuals are slightly heavy-tailed, which indicates our model doesn't meet the normality assumption.
+
+```{r,echo=FALSE, result = 'hide', fig.height = 3, fig.width = 7, fig.align = "center"}
+# Diagnostic plots
+options(repr.plot.width=12, repr.plot.height=6)
+par(mfrow=c(1,2))
+plot(fit,cex.lab=1.2,which=1:2)
+
+#leveneTest(Math_Grade ~ interaction(School_ID, Class_Type), 
+                 #  data = df)
+#leveneTest(Math_Grade ~ School_ID*Class_Type, 
+                  # data = df)
+```
+<p style="text-align: center;">**Figure 3**. Diagnostic plots.</p>
+
+<div align="left"> **Remedy**
+
+After finding that using mean math grade did not meet the assumptions, I used median to analyze the data. However, those assumptions were also not met either. I then employed a nonparametric alternative called the **Friedman rank sum test**, which has several assumptions (Mack and Skillings, 1980). These include: 1) the group is a random sample from the population, 2) there is no interaction between blocks and treatment levels, 3) the data should be at least ordinal or continuous, and 4) the samples do not need to be normally distributed. There are 54 schools have more than 3 class types, which means they have reprtitive class types while four schools only have two class types. To meet the balanced requirements of this test, I removed schools that have less than 3 class types and remove the repetitive class type for the schools with more than 3 class types. Based on the results from the Friedman rank sum test (**Table 6**), there was a significant difference in math grades among different class types.
+
+
+
+```{r,echo=FALSE, warning=FALSE, results='hide',include = FALSE, message=FALSE}
+df_new <- data %>%
+  group_by(Teacher_ID) %>%
+  mutate(Math_Grade=median(Math_Grade)) %>%
+  slice(1)
+
+fit <- lm(Math_Grade ~ School_ID + Class_Type,data=df_new)
+summary(fit)
+anova(fit)
+options(repr.plot.width=12, repr.plot.height=6)
+par(mfrow=c(1,2))
+plot(fit,cex.lab=1.2,which=1:2)
+par(mfrow=c(1,1))
+#leveneTest(Math_Grade ~ interaction(School_ID, Class_Type), 
+                  # data = df_new)
+
+library(dplyr)
+alpha=0.05
+T.ci=TukeyHSD(aov(Math_Grade ~ School_ID + Class_Type,data=df_new),conf.level = 1-alpha)
+T.ci$Class_Type
+```
+
+
+
+
+
+```{r,message=FALSE, warning=FALSE, include=FALSE, results='hide'}
+df_m <- as.data.frame(df)
+df_m$Class_Type <- as.factor(df_m$Class_Type )
+df_m$School_ID <- as.factor(df_m$School_ID )
+# friedman.test(Math_Grade ~Class_Type|School_ID,data=as.matrix(df_m))
+# not an unreplicated complete block design
+```
+
+
+```{r, echo=FALSE, warning=FALSE, results='hide',include = FALSE, message=FALSE}
+# Find school_id which have more than or less than 3 class types
+vect <- numeric()
+for (i in unique(df$School_ID)) {
+  if (sum(df$School_ID==i)!=3){
+     vect <- c(vect, i)
+  }
+}
+vect
+
+# Remove the repetitive class type for each school_id
+ans <- matrix(,nrow=1,ncol=5)
+for (i in unique(df$School_ID)){
+  x <- df[df$School_ID==i,]
+  y <- as.matrix(x[!duplicated(df[df$School_ID==i,]$Class_Type),])
+  ans <- rbind(ans,y)
+}
+
+df_new <- as.data.frame(ans)
+
+data_new <- na.omit(df_new) 
+str(data_new)
+
+
+sum(data_new$Class_Type=='1') #76
+sum(data_new$Class_Type=='2') #76
+sum(data_new$Class_Type=='3') #72
+
+## Find school which have less than 3 class types
+vect <- numeric()
+for (i in unique(data_new$School_ID)) {
+  if (sum(data_new$School_ID==i)!=3){
+     vect <- c(vect, i)
+  }
+}
+vect
+# Remove those rows
+# weired things happened here.
+# ddd <- data_new[data_new$School_ID!=c("244728","244736","244796","244839"),]
+# This doesn't work
+# have to delete rows one by one
+ddd <- data_new[data_new$School_ID!="244728",]
+ddd <- ddd[ddd$School_ID!="244736",]
+ddd <- ddd[ddd$School_ID!="244796",]
+ddd <- ddd[ddd$School_ID!="244839",]
+sum(ddd$Class_Type=='1')
+sum(ddd$Class_Type=='2')
+sum(ddd$Class_Type=='3')
+
+ddd <- na.omit(ddd) 
+friedman.test(Mean_Math_Grade_Per_Teacher ~Class_Type|School_ID,data=as.matrix(ddd))
+```
+
+|   Friedman chi-squared   |   DF | p-value |
+| ------------------|:-----------:|:------:|
+| 25.583    |  2 | <0.0001*** | 
+
+<p style="text-align: center;">**Table 6**. Friedman rank sum test</p>
+
+*** 
+
+# Discussion 
+<div align="left">
+In this project, We investigated the effect of class type on 1st year math grades, using school ID as a blocking effect. Initially, a parametric method was used, but it failed during the model diagnostic stage. We then used the nonparametric method called **Friedman rank sum test** and obtained the same result, indicating that small-size class types yield the highest math grades. Based on our findings, we suggest reducing class size to increase student learning achievement. However, this may not be the best approach for all public school systems, and policymakers should consider an ideal or reasonable class size. Future research can focus on determining an optimal class size that can significantly improve student learning achievement, and should also use a balanced design and increase replications for each class type in each schools, as our dataset is unbalanced and lack of replications, which can reduce the power of the test.
+
+*** 
+# Acknowledgement {-}
+
+I want to thank instructor Shizhe Chen and teaching assistant Jing Lyu for their guidance and help.
+
+# Reference {-}
+
+Achilles C.M., Helen P.B, Fred B., Jayne Boyd-Zaharias; Jeremy F., John F. John J., Elizabeth W. (2008). "Tennessee's Student Teacher Achievement Ratio (STAR) project", https://doi.org/10.7910/DVN/SIWH9F, Harvard Dataverse, V1, UNF:3:Ji2Q+9HCCZAbw3csOdMNdA== 
+
+Ariel, B., & Farrington, D. P. (2010). Randomized block designs. Handbook of quantitative criminology, 437-454.
+
+Chetty, R., Friedman, J. N., Hilger, N., Saez, E., Schanzenbach, D. W., & Yagan, D. (2011). How does your kindergarten classroom affect your earnings? Evidence from Project STAR. The Quarterly journal of economics, 126(4), 1593-1660.
+
+
+Mack, G. A., & Skillings, J. H. (1980). A Friedman-type rank test for main effects in a two-factor ANOVA. Journal of the American Statistical Association, 75(372), 947-951.
+
+*** 
+# Session info {-}
+
+
+```{r}
+sessionInfo()
+```
+*** 
+
+# Appendix {-}
+\begin{center} Appendix: R Script \end{center}
+
+```{r, ref.label=knitr::all_labels(),echo=TRUE,eval=FALSE}
+```
+
+
+
+
